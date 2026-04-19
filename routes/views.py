@@ -15,7 +15,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import is_naive, make_aware
 from django.views.decorators.http import require_GET, require_POST
+
+from planning.services import OpenMeteoError, wind_along_route
 
 from . import io as route_io
 from .forms import RouteForm, RouteImportForm
@@ -203,6 +207,37 @@ def route_export(request, pk, fmt):
                         for ch in route.name) or f'route-{route.pk}'
     resp['Content-Disposition'] = f'attachment; filename="{safe_name}.{ext}"'
     return resp
+
+
+@login_required
+@require_GET
+def route_wind(request, pk):
+    """Return wind samples along a route at the time given by ``?when=``.
+
+    Mirrors :func:`planning.views.ride_wind` but takes the timestamp from a
+    query parameter so the route detail page can preview wind for any time
+    without first scheduling a ride.
+    """
+    route = get_object_or_404(Route, pk=pk, owner=request.user)
+    when_raw = request.GET.get('when')
+    if not when_raw:
+        return JsonResponse({'error': "Missing 'when' query parameter"}, status=400)
+    when = parse_datetime(when_raw)
+    if when is None:
+        return JsonResponse({'error': "Invalid 'when' format"}, status=400)
+    # ``datetime-local`` inputs send naive ISO strings; assume current TZ
+    # so users see wind for the wall-clock time they picked.
+    if is_naive(when):
+        when = make_aware(when)
+
+    coords = route.coordinates
+    if len(coords) < 2:
+        return JsonResponse({'error': 'Route has too few points'}, status=400)
+    try:
+        samples = wind_along_route(coords, when)
+    except OpenMeteoError as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+    return JsonResponse({'samples': samples})
 
 
 @login_required

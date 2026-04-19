@@ -19,6 +19,27 @@
 
     <div id="map" class="map"></div>
 
+    <div class="wind-controls">
+        <h2>Wind preview</h2>
+        <p class="meta">Pick a time to see hourly wind along the route. Forecast
+            covers roughly the next 16 days.</p>
+        <div class="wind-row">
+            <label for="wind-when">Time:</label>
+            <input type="datetime-local" id="wind-when" step="3600">
+            <input type="range" id="wind-slider" min="0" max="360" step="1" value="0">
+            <button type="button" class="btn" id="wind-now">Now</button>
+        </div>
+        <p id="wind-status" class="meta">Adjust the slider to load wind.</p>
+        <form method="post" action="{% url 'planning:create' %}" class="wind-row"
+              id="schedule-at-form">
+            {% csrf_token %}
+            <input type="hidden" name="route" value="{{ route.pk }}">
+            <input type="hidden" name="scheduled_at" id="schedule-when">
+            <input type="hidden" name="notes" value="">
+            <button type="submit" class="btn">Schedule this time</button>
+        </form>
+    </div>
+
     {% if profile %}
     <h2>Elevation profile</h2>
     <div class="chart-wrap"><canvas id="elev-chart"></canvas></div>
@@ -48,6 +69,7 @@
   const routeGeom = {{ route.geometry|default:"null"|safe }};
   const bounds = {{ route.bounds|default:"null"|safe }};
   const profile = {{ profile|default:"[]"|safe }};
+  const windUrl = "{% url 'routes:wind' route.pk %}";
 
   const map = L.map('map');
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -64,6 +86,91 @@
     }
   } else {
     map.setView([51.505, -0.09], 13);
+  }
+
+  // Wind preview slider — fetches from routes:wind and renders rotated arrows.
+  // Reuses the same arrow + rotation convention as the ride detail page.
+  if (routeGeom) {
+    const imperial = window.USER_UNITS === 'imperial';
+    const speedConv = imperial ? 2.23694 : 3.6;
+    const speedUnit = imperial ? 'mph' : 'km/h';
+    const windLayer = L.layerGroup().addTo(map);
+    const whenInput = document.getElementById('wind-when');
+    const slider = document.getElementById('wind-slider');
+    const status = document.getElementById('wind-status');
+    const nowBtn = document.getElementById('wind-now');
+
+    function roundedNow() {
+      const d = new Date();
+      d.setMinutes(0, 0, 0);
+      return d;
+    }
+    function toLocalIso(d) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+             `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    function setWhen(d) {
+      whenInput.value = toLocalIso(d);
+      const offsetH = Math.round((d - roundedNow()) / 3_600_000);
+      slider.value = Math.max(0, Math.min(slider.max, offsetH));
+    }
+    function windIcon(speedMs, dirFrom) {
+      const rot = (dirFrom + 180) % 360;
+      const label = speedMs != null
+        ? (speedMs * speedConv).toFixed(1) + ' ' + speedUnit : '—';
+      return L.divIcon({
+        className: 'wind-arrow',
+        html: `<div class="wind-marker" style="transform:rotate(${rot}deg)">➤</div>
+               <div class="wind-label">${label}</div>`,
+        iconSize: [48, 32], iconAnchor: [24, 16],
+      });
+    }
+    let fetchSeq = 0;
+    function loadWind() {
+      const when = whenInput.value;
+      if (!when) return;
+      const seq = ++fetchSeq;
+      status.textContent = 'Loading wind…';
+      fetch(`${windUrl}?when=${encodeURIComponent(when)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (seq !== fetchSeq) return;  // a newer request superseded this one
+          windLayer.clearLayers();
+          if (data.error) { status.textContent = 'Wind unavailable: ' + data.error; return; }
+          let drawn = 0;
+          data.samples.forEach(s => {
+            if (s.wind_dir_deg == null || s.wind_speed_ms == null) return;
+            L.marker([s.lat, s.lng], {icon: windIcon(s.wind_speed_ms, s.wind_dir_deg)})
+              .addTo(windLayer);
+            drawn++;
+          });
+          status.textContent = drawn
+            ? `Wind for ${when.replace('T', ' ')} — ${drawn} samples`
+            : `No wind data for ${when.replace('T', ' ')} (outside forecast horizon?)`;
+        })
+        .catch(() => { if (seq === fetchSeq) status.textContent = 'Wind fetch failed'; });
+    }
+
+    // Mirror the picker's value into the schedule form right before submit
+    // so the user always schedules the time currently shown in the input.
+    const scheduleForm = document.getElementById('schedule-at-form');
+    scheduleForm.addEventListener('submit', () => {
+      document.getElementById('schedule-when').value = whenInput.value;
+    });
+
+    setWhen(roundedNow());
+    nowBtn.addEventListener('click', () => { setWhen(roundedNow()); loadWind(); });
+    whenInput.addEventListener('change', () => {
+      const d = new Date(whenInput.value);
+      if (!isNaN(d)) { setWhen(d); loadWind(); }
+    });
+    slider.addEventListener('input', () => {
+      const d = roundedNow();
+      d.setHours(d.getHours() + parseInt(slider.value, 10));
+      whenInput.value = toLocalIso(d);
+    });
+    slider.addEventListener('change', loadWind);
   }
 
   if (profile.length && window.Chart) {

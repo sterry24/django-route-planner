@@ -14,5 +14,6 @@ urlpatterns = [
     path('<int:pk>/edit/', views.route_edit, name='edit'),
     path('<int:pk>/delete/', views.route_delete, name='delete'),
     path('<int:pk>/geojson/', views.route_geojson, name='geojson'),
+    path('<int:pk>/wind/', views.route_wind, name='wind'),
     path('<int:pk>/export/<str:fmt>/', views.route_export, name='export'),
 ]
