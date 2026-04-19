@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load planning_extras %}
+{% block title %}{{ month_name }} {{ year }}{% endblock %}
+{% block content %}
+<section>
+    <div class="section-head">
+        <h1>{{ month_name }} {{ year }}</h1>
+        <nav class="cal-nav">
+            <a href="?year={{ prev_year }}&month={{ prev_month }}">◀ Prev</a>
+            <a href="?year={{ next_year }}&month={{ next_month_num }}">Next ▶</a>
+            <a class="btn" href="{% url 'planning:create' %}">Schedule ride</a>
+        </nav>
+    </div>
+    <table class="calendar">
+        <thead>
+            <tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr>
+        </thead>
+        <tbody>
+            {% for week in weeks %}
+            <tr>
+                {% for day in week %}
+                <td class="{% if day.month != month %}other-month{% endif %}
+                    {% if day == today %}today{% endif %}">
+                    <div class="day-num">
+                        <a href="{% url 'planning:create' %}?when={{ day|date:'Y-m-d' }}T09:00">{{ day.day }}</a>
+                    </div>
+                    {% for ride in rides_by_day|get_item:day %}
+                        <a class="ride-chip" href="{{ ride.get_absolute_url }}">
+                            {{ ride.scheduled_at|date:"H:i" }} {{ ride.route.name }}
+                        </a>
+                    {% endfor %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{% if ride %}Edit ride{% else %}Schedule ride{% endif %}{% endblock %}
+{% block content %}
+<section class="card narrow">
+    <h1>{% if ride %}Edit ride{% else %}Schedule ride{% endif %}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="primary">Save</button>
+    </form>
+</section>
+{% endblock %}

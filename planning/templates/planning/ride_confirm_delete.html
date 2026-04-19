@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card narrow">
+    <h1>Delete ride?</h1>
+    <p>{{ ride }}</p>
+    <form method="post">
+        {% csrf_token %}
+        <button class="btn danger" type="submit">Delete</button>
+        <a class="btn" href="{{ ride.get_absolute_url }}">Cancel</a>
+    </form>
+</section>
+{% endblock %}

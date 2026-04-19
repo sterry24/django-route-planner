@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Import route{% endblock %}
+{% block content %}
+<section class="card narrow">
+    <h1>Import route</h1>
+    <p>Upload a <code>.gpx</code>, <code>.tcx</code>, <code>.fit</code>,
+        <code>.kml</code>, or <code>.kmz</code> file.</p>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="primary">Import</button>
+    </form>
+</section>
+{% endblock %}

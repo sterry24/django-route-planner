@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<section class="card narrow">
+    <h1>Settings</h1>
+    <form method="post">
+        {% csrf_token %}
+        <fieldset>
+            <legend>Units</legend>
+            {{ form.units }}
+        </fieldset>
+        <button type="submit" class="primary">Save</button>
+    </form>
+</section>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load units %}
+{% block title %}{{ ride.route.name }} · {{ ride.scheduled_at|date:"Y-m-d H:i" }}{% endblock %}
+{% block content %}
+<section>
+    <div class="section-head">
+        <h1>{{ ride.route.name }}</h1>
+        <div>
+            <a class="btn" href="{% url 'planning:edit' ride.pk %}">Edit</a>
+            <a class="btn" href="{{ ride.route.get_absolute_url }}">View route</a>
+        </div>
+    </div>
+    <p class="meta">{{ ride.scheduled_at|date:"l, F j Y" }} at
+        {{ ride.scheduled_at|date:"H:i" }} UTC
+        · {{ ride.route.distance_m|dist_long:units }}</p>
+    {% if ride.notes %}<p>{{ ride.notes }}</p>{% endif %}
+
+    <div id="map" class="map map-tall"></div>
+    <p id="wind-status" class="meta">Loading wind forecast…</p>
+    <form method="post" action="{% url 'planning:delete' ride.pk %}"
+          onsubmit="return confirm('Delete this scheduled ride?');" class="danger-form">
+        {% csrf_token %}
+        <button type="submit" class="btn danger">Delete ride</button>
+    </form>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+  const geometry = {{ ride.route.geometry|default:"null"|safe }};
+  const bounds = {{ ride.route.bounds|default:"null"|safe }};
+  const windUrl = "{% url 'planning:wind' ride.pk %}";
+  const map = L.map('map');
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd',
+    attribution: '© OpenStreetMap contributors © CARTO'
+  }).addTo(map);
+  const latlngs = geometry.coordinates.map(c => [c[1], c[0]]);
+  const line = L.polyline(latlngs, {color: '#c0392b', weight: 4}).addTo(map);
+  if (bounds) {
+    map.fitBounds([[bounds[0][1], bounds[0][0]], [bounds[1][1], bounds[1][0]]]);
+  } else { map.fitBounds(line.getBounds()); }
+
+  // Wind arrows: a DivIcon rotated to the direction the wind is BLOWING TOWARD
+  // (meteorological convention reports where it comes FROM, so we add 180°).
+  const imperial = window.USER_UNITS === 'imperial';
+  const speedConv = imperial ? 2.23694 : 3.6;   // m/s → mph or km/h
+  const speedUnit = imperial ? 'mph' : 'km/h';
+  function windIcon(speedMs, dirFrom) {
+    const rot = (dirFrom + 180) % 360;
+    const label = speedMs != null
+      ? (speedMs * speedConv).toFixed(1) + ' ' + speedUnit : '—';
+    return L.divIcon({
+      className: 'wind-arrow',
+      html: `<div class="wind-marker" style="transform:rotate(${rot}deg)">➤</div>
+             <div class="wind-label">${label}</div>`,
+      iconSize: [48, 32], iconAnchor: [24, 16],
+    });
+  }
+
+  fetch(windUrl).then(r => r.json()).then(data => {
+    const status = document.getElementById('wind-status');
+    if (data.error) { status.textContent = 'Wind unavailable: ' + data.error; return; }
+    data.samples.forEach(s => {
+      if (s.wind_dir_deg == null || s.wind_speed_ms == null) return;
+      L.marker([s.lat, s.lng], {icon: windIcon(s.wind_speed_ms, s.wind_dir_deg)})
+        .addTo(map);
+    });
+    status.textContent = `Wind overlay: ${data.samples.length} samples from Open-Meteo`;
+  }).catch(err => {
+    document.getElementById('wind-status').textContent = 'Wind fetch failed';
+  });
+</script>
+{% endblock %}

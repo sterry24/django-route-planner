@@ -1,0 +1,9 @@
+Django>=5.0
+gpxpy>=1.6
+fitparse>=1.2
+requests>=2.31
+lxml>=5.0
+
+# Documentation (optional — only needed when building docs in docs/).
+sphinx>=7.0
+sphinx-rtd-theme>=2.0

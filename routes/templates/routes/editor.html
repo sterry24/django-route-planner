@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{% if route %}Edit route{% else %}New route{% endif %}{% endblock %}
+{% block content %}
+<section class="editor">
+    <div class="editor-controls">
+        <h1>{% if route %}Edit route{% else %}New route{% endif %}</h1>
+        <label>Name <input type="text" id="route-name"
+            value="{{ route.name|default_if_none:'' }}" required></label>
+        <label>Description <textarea id="route-desc" rows="2">{{ route.description|default_if_none:'' }}</textarea></label>
+        <p class="hint">Click on the map to add waypoints. The route snaps to cycling-friendly roads via OSRM.</p>
+        <p><span id="dist-display">0</span> <span id="dist-unit">km</span> · <span id="wp-count">0</span> waypoints</p>
+        <div class="btn-row">
+            <button type="button" id="undo-btn">Undo</button>
+            <button type="button" id="clear-btn">Clear</button>
+            <button type="button" id="save-btn" class="primary">Save</button>
+        </div>
+        <p id="status"></p>
+    </div>
+    <div id="map" class="map map-tall"></div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.ROUTE_CONTEXT = {
+    id: {{ route.pk|default:"null" }},
+    geometry: {{ route.geometry|default:"null"|safe }},
+    bounds: {{ route.bounds|default:"null"|safe }},
+    saveUrl: "{% url 'routes:save' %}",
+    osrmUrl: "{% url 'routes:osrm' %}",
+    csrf: "{{ csrf_token }}",
+  };
+</script>
+<script src="{% load static %}{% static 'js/editor.js' %}"></script>
+{% endblock %}

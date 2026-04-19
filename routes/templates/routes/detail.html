@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load units %}
+{% block title %}{{ route.name }}{% endblock %}
+{% block content %}
+<section>
+    <div class="section-head">
+        <h1>{{ route.name }}</h1>
+        <div>
+            <a class="btn" href="{% url 'routes:edit' route.pk %}">Edit</a>
+            <a class="btn" href="{% url 'planning:create' %}?route={{ route.pk }}">Schedule ride</a>
+        </div>
+    </div>
+    <p class="meta">
+        {{ route.distance_m|dist_long:units }}
+        · {{ route.elevation_gain_m|elev:units }} gain
+        {% if profile %}· {{ min_ele|elev:units }}–{{ max_ele|elev:units }} elevation{% endif %}
+    </p>
+    {% if route.description %}<p>{{ route.description }}</p>{% endif %}
+
+    <div id="map" class="map"></div>
+
+    {% if profile %}
+    <h2>Elevation profile</h2>
+    <div class="chart-wrap"><canvas id="elev-chart"></canvas></div>
+    {% endif %}
+
+    <details>
+        <summary>Export</summary>
+        <div class="export-row">
+            <a class="btn" href="{% url 'routes:export' route.pk 'gpx' %}">GPX</a>
+            <a class="btn" href="{% url 'routes:export' route.pk 'tcx' %}">TCX</a>
+            <a class="btn" href="{% url 'routes:export' route.pk 'fit' %}">FIT</a>
+            <a class="btn" href="{% url 'routes:export' route.pk 'kml' %}">KML</a>
+            <a class="btn" href="{% url 'routes:export' route.pk 'kmz' %}">KMZ</a>
+        </div>
+    </details>
+
+    <form method="post" action="{% url 'routes:delete' route.pk %}"
+          onsubmit="return confirm('Delete this route?');" class="danger-form">
+        {% csrf_token %}
+        <button type="submit" class="btn danger">Delete route</button>
+    </form>
+</section>
+{% endblock %}
+{% block scripts %}
+{% if profile %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>{% endif %}
+<script>
+  const routeGeom = {{ route.geometry|default:"null"|safe }};
+  const bounds = {{ route.bounds|default:"null"|safe }};
+  const profile = {{ profile|default:"[]"|safe }};
+
+  const map = L.map('map');
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd',
+    attribution: '© OpenStreetMap contributors © CARTO'
+  }).addTo(map);
+  if (routeGeom) {
+    const latlngs = routeGeom.coordinates.map(c => [c[1], c[0]]);
+    const polyline = L.polyline(latlngs, {color: '#c0392b', weight: 4}).addTo(map);
+    if (bounds) {
+      map.fitBounds([[bounds[0][1], bounds[0][0]], [bounds[1][1], bounds[1][0]]]);
+    } else {
+      map.fitBounds(polyline.getBounds());
+    }
+  } else {
+    map.setView([51.505, -0.09], 13);
+  }
+
+  if (profile.length && window.Chart) {
+    const imperial = window.USER_UNITS === 'imperial';
+    const distConv = imperial ? 0.621371 : 1;       // km → mi or km
+    const elevConv = imperial ? 3.28084 : 1;        // m → ft or m
+    const distUnit = imperial ? 'mi' : 'km';
+    const elevUnit = imperial ? 'ft' : 'm';
+    const data = profile.map(p => ({x: p[0] * distConv, y: p[1] * elevConv}));
+    const ctx = document.getElementById('elev-chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {datasets: [{
+        label: `Elevation (${elevUnit})`,
+        data,
+        borderColor: '#c0392b',
+        backgroundColor: 'rgba(192,57,43,0.15)',
+        fill: true,
+        tension: 0.15,
+        pointRadius: 0,
+        borderWidth: 2,
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {mode: 'index', intersect: false},
+        plugins: {legend: {display: false},
+          tooltip: {callbacks: {
+            title: items => items[0].parsed.x.toFixed(1) + ' ' + distUnit,
+            label: item => item.parsed.y.toFixed(0) + ' ' + elevUnit,
+          }}},
+        scales: {
+          x: {type: 'linear', title: {display: true, text: `Distance (${distUnit})`},
+              ticks: {maxTicksLimit: 8}},
+          y: {title: {display: true, text: `Elevation (${elevUnit})`}},
+        },
+      },
+    });
+  }
+</script>
+{% endblock %}
