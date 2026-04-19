@@ -10,20 +10,85 @@
             <a class="btn" href="{% url 'routes:import' %}">Import</a>
         </div>
     </div>
+
     {% if routes %}
-    <ul class="route-list">
-        {% for route in routes %}
-        <li>
-            <a href="{{ route.get_absolute_url }}"><strong>{{ route.name }}</strong></a>
-            <span class="meta">{{ route.distance_m|dist_long:units }}
-                · {{ route.elevation_gain_m|elev:units }} gain
-                · updated {{ route.updated_at|date:"Y-m-d" }}</span>
-        </li>
-        {% endfor %}
-    </ul>
+    <div id="map" class="map"></div>
+
+    <table class="route-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th class="num">Distance</th>
+                <th class="num">Elevation gain</th>
+                <th>Edited</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for route in routes %}
+            <tr data-route-id="{{ route.pk }}" data-geojson-url="{% url 'routes:geojson' route.pk %}">
+                <td><a href="{{ route.get_absolute_url }}">{{ route.name }}</a></td>
+                <td class="num">{{ route.distance_m|dist_long:units }}</td>
+                <td class="num">{{ route.elevation_gain_m|elev:units }}</td>
+                <td>{{ route.updated_at|date:"Y-m-d" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
     {% else %}
     <p>No routes yet. <a href="{% url 'routes:create' %}">Create one</a>
         or <a href="{% url 'routes:import' %}">import a file</a>.</p>
     {% endif %}
 </section>
+{% endblock %}
+{% block scripts %}
+{% if routes %}
+<script>
+  const map = L.map('map');
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd',
+    attribution: '© OpenStreetMap contributors © CARTO'
+  }).addTo(map);
+  map.setView([39.5, -98.35], 4);  // continental US fallback until first preview
+
+  const cache = new Map();           // route id → {geometry, bounds}
+  let polyline = null;
+  let activeRow = null;
+  let pendingId = null;              // most-recently requested id; ignore stale fetches
+
+  function show(data) {
+    if (polyline) { map.removeLayer(polyline); polyline = null; }
+    if (data.geometry && data.geometry.coordinates) {
+      const latlngs = data.geometry.coordinates.map(c => [c[1], c[0]]);
+      polyline = L.polyline(latlngs, {color: '#c0392b', weight: 4}).addTo(map);
+    }
+    if (data.bounds) {
+      map.fitBounds([[data.bounds[0][1], data.bounds[0][0]],
+                     [data.bounds[1][1], data.bounds[1][0]]]);
+    } else if (polyline) {
+      map.fitBounds(polyline.getBounds());
+    }
+  }
+
+  function preview(row) {
+    if (activeRow) activeRow.classList.remove('active');
+    row.classList.add('active');
+    activeRow = row;
+
+    const id = row.dataset.routeId;
+    pendingId = id;
+    if (cache.has(id)) { show(cache.get(id)); return; }
+    fetch(row.dataset.geojsonUrl)
+      .then(r => r.json())
+      .then(data => {
+        cache.set(id, data);
+        if (pendingId === id) show(data);  // user has since hovered another row
+      })
+      .catch(() => {});
+  }
+
+  const rows = document.querySelectorAll('.route-table tbody tr');
+  rows.forEach(row => row.addEventListener('mouseenter', () => preview(row)));
+  if (rows.length) preview(rows[0]);  // start with the most-recently-edited route
+</script>
+{% endif %}
 {% endblock %}

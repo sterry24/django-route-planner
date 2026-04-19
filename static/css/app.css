@@ -44,6 +44,16 @@ main { padding: 1.5rem; max-width: 1100px; margin: 0 auto; }
   border-radius: 4px; margin-bottom: 0.5rem; display: flex; justify-content: space-between; }
 .route-list .meta, .meta { color: var(--muted); font-size: 0.9rem; }
 
+.route-table { width: 100%; border-collapse: collapse; background: var(--card);
+  border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.route-table th, .route-table td { padding: 0.6rem 0.75rem; text-align: left;
+  border-bottom: 1px solid var(--border); }
+.route-table th { font-weight: 600; background: rgba(0,0,0,0.03); }
+.route-table tbody tr { cursor: default; }
+.route-table tbody tr:hover, .route-table tbody tr.active { background: rgba(192,57,43,0.08); }
+.route-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.route-table tbody tr:last-child td { border-bottom: none; }
+
 .messages { list-style: none; padding: 0; margin: 1rem; }
 .msg { padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 0.5rem; }
 .msg-success { background: #e6f4ea; color: #1e6b35; }
