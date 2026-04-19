@@ -72,7 +72,10 @@ def compute_bounds(coords: Sequence[Coord]) -> list[list[float]] | None:
 
 
 def elevation_profile(coords: Sequence[Coord], max_points: int = 200) -> list[list[float]]:
-    """Build a downsampled ``[[distance_km, elevation_m], ...]`` series for charting.
+    """Build a downsampled ``[[distance_km, elevation_m, lng, lat], ...]`` series.
+
+    Each sample carries its own geographic coordinates so the route detail
+    page can cross-link chart hovers to map positions and vice versa.
 
     If the input has more than ``max_points`` coordinates it is sampled
     uniformly by index. Returns ``[]`` when any point lacks elevation so
@@ -87,16 +90,17 @@ def elevation_profile(coords: Sequence[Coord], max_points: int = 200) -> list[li
     for i in range(len(coords) - 1):
         cumulative.append(cumulative[-1] + haversine_m(coords[i], coords[i + 1]))
 
+    def _sample(i: int) -> list[float]:
+        c = coords[i]
+        return [round(cumulative[i] / 1000.0, 3), round(c[2], 1),
+                round(c[0], 6), round(c[1], 6)]
+
     if len(coords) <= max_points:
-        return [[round(cumulative[i] / 1000.0, 3), round(coords[i][2], 1)]
-                for i in range(len(coords))]
+        return [_sample(i) for i in range(len(coords))]
 
     step = (len(coords) - 1) / (max_points - 1)
-    out: list[list[float]] = []
-    for k in range(max_points):
-        i = min(int(round(k * step)), len(coords) - 1)
-        out.append([round(cumulative[i] / 1000.0, 3), round(coords[i][2], 1)])
-    return out
+    return [_sample(min(int(round(k * step)), len(coords) - 1))
+            for k in range(max_points)]
 
 
 def sample_along(coords: Sequence[Coord], n_samples: int) -> list[tuple[float, Coord]]:

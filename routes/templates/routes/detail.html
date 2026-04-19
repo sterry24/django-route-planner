@@ -76,9 +76,10 @@
     maxZoom: 19, subdomains: 'abcd',
     attribution: '© OpenStreetMap contributors © CARTO'
   }).addTo(map);
+  let polyline = null;
   if (routeGeom) {
     const latlngs = routeGeom.coordinates.map(c => [c[1], c[0]]);
-    const polyline = L.polyline(latlngs, {color: '#c0392b', weight: 4}).addTo(map);
+    polyline = L.polyline(latlngs, {color: '#c0392b', weight: 4}).addTo(map);
     if (bounds) {
       map.fitBounds([[bounds[0][1], bounds[0][0]], [bounds[1][1], bounds[1][0]]]);
     } else {
@@ -180,8 +181,25 @@
     const distUnit = imperial ? 'mi' : 'km';
     const elevUnit = imperial ? 'ft' : 'm';
     const data = profile.map(p => ({x: p[0] * distConv, y: p[1] * elevConv}));
+    const lngLats = profile.map(p => [p[3], p[2]]);  // [lat, lng] for Leaflet
     const ctx = document.getElementById('elev-chart').getContext('2d');
-    new Chart(ctx, {
+
+    // Map indicator that mirrors the chart hover position. Hidden by default;
+    // shown when the chart or polyline reports an active sample index.
+    const hoverMarker = polyline ? L.circleMarker([0, 0], {
+      radius: 6, color: '#fff', weight: 2,
+      fillColor: '#c0392b', fillOpacity: 1,
+    }) : null;
+    function showMarkerAt(i) {
+      if (!hoverMarker || i < 0 || i >= lngLats.length) return;
+      hoverMarker.setLatLng(lngLats[i]);
+      if (!map.hasLayer(hoverMarker)) hoverMarker.addTo(map);
+    }
+    function hideMarker() {
+      if (hoverMarker && map.hasLayer(hoverMarker)) map.removeLayer(hoverMarker);
+    }
+
+    const chart = new Chart(ctx, {
       type: 'line',
       data: {datasets: [{
         label: `Elevation (${elevUnit})`,
@@ -197,6 +215,10 @@
         responsive: true,
         maintainAspectRatio: false,
         interaction: {mode: 'index', intersect: false},
+        onHover: (_evt, elements) => {
+          if (elements.length) showMarkerAt(elements[0].index);
+          else hideMarker();
+        },
         plugins: {legend: {display: false},
           tooltip: {callbacks: {
             title: items => items[0].parsed.x.toFixed(1) + ' ' + distUnit,
@@ -209,6 +231,44 @@
         },
       },
     });
+    document.getElementById('elev-chart').addEventListener('mouseleave', hideMarker);
+
+    // Reverse link: hovering the polyline activates the matching chart sample.
+    // Find the nearest profile point by squared lat/lng distance — fine here
+    // because samples are dense and we only need the closest index, not a true
+    // metric distance.
+    if (polyline) {
+      function nearestIndex(latlng) {
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < lngLats.length; i++) {
+          const dlat = lngLats[i][0] - latlng.lat;
+          const dlng = lngLats[i][1] - latlng.lng;
+          const d = dlat * dlat + dlng * dlng;
+          if (d < bestD) { bestD = d; best = i; }
+        }
+        return best;
+      }
+      function activateChart(i) {
+        const meta = chart.getDatasetMeta(0);
+        const point = meta.data[i];
+        if (!point) return;
+        chart.setActiveElements([{datasetIndex: 0, index: i}]);
+        chart.tooltip.setActiveElements(
+          [{datasetIndex: 0, index: i}], {x: point.x, y: point.y});
+        chart.update();
+      }
+      function deactivateChart() {
+        chart.setActiveElements([]);
+        chart.tooltip.setActiveElements([], {x: 0, y: 0});
+        chart.update();
+      }
+      polyline.on('mousemove', (e) => {
+        const i = nearestIndex(e.latlng);
+        showMarkerAt(i);
+        activateChart(i);
+      });
+      polyline.on('mouseout', () => { hideMarker(); deactivateChart(); });
+    }
   }
 </script>
 {% endblock %}
