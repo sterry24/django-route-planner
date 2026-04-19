@@ -29,5 +29,15 @@ class Profile(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
     units = models.CharField(max_length=10, choices=UNITS_CHOICES, default=METRIC)
 
+    # RideWithGPS OAuth — populated by the connect/callback flow in
+    # :mod:`accounts.rwgps`. Empty string means "not connected".
+    rwgps_access_token = models.CharField(max_length=255, blank=True, default='')
+    rwgps_user_id = models.CharField(max_length=64, blank=True, default='')
+
     def __str__(self):
         return f'Profile({self.user.username})'
+
+    @property
+    def rwgps_connected(self) -> bool:
+        """True when this profile has a stored RideWithGPS access token."""
+        return bool(self.rwgps_access_token)

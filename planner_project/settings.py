@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -131,3 +132,23 @@ LOGOUT_REDIRECT_URL = 'login'
 OSRM_BASE_URL = 'https://routing.openstreetmap.de/routed-bike'
 OSRM_PROFILE = 'bike'
 OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast'
+
+# RideWithGPS OAuth — register an app at https://ridewithgps.com/api/api_clients
+# and set the redirect URI on the app to match RWGPS_REDIRECT_URI below.
+# Pull from environment so credentials never end up in version control.
+RWGPS_CLIENT_ID = os.environ.get('RWGPS_CLIENT_ID', '')
+RWGPS_CLIENT_SECRET = os.environ.get('RWGPS_CLIENT_SECRET', '')
+RWGPS_REDIRECT_URI = os.environ.get(
+    'RWGPS_REDIRECT_URI', 'http://127.0.0.1:8000/accounts/rwgps/callback/')
+RWGPS_AUTHORIZE_URL = 'https://ridewithgps.com/oauth/authorize'
+RWGPS_TOKEN_URL = 'https://ridewithgps.com/oauth/token.json'
+RWGPS_API_BASE_URL = 'https://ridewithgps.com/api/v1'
+
+
+# Pull in any developer-local overrides last so they win over everything
+# above. ``local_settings.py`` is gitignored — use it for credentials and
+# machine-specific tweaks that should never be committed.
+try:
+    from .local_settings import *  # noqa: F401,F403
+except ImportError:
+    pass

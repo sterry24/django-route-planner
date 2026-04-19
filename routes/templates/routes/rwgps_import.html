@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load units %}
+{% block title %}Import from RideWithGPS{% endblock %}
+{% block content %}
+<section>
+    <div class="section-head">
+        <h1>Import from RideWithGPS</h1>
+        <a class="btn" href="{% url 'accounts:settings' %}">Settings</a>
+    </div>
+    <p class="meta">Page {{ page }}{% if meta.total_pages %} of {{ meta.total_pages }}{% endif %}.</p>
+
+    {% if rwgps_routes %}
+    <form method="post">
+        {% csrf_token %}
+        <ul class="route-list">
+            {% for r in rwgps_routes %}
+            <li>
+                <label>
+                    <input type="checkbox" name="rwgps_route_ids" value="{{ r.id }}">
+                    <strong>{{ r.name|default:"(untitled)" }}</strong>
+                </label>
+                <span class="meta">
+                    {% if r.distance %}{{ r.distance|dist_long:units }}{% endif %}
+                    {% if r.elevation_gain %} · {{ r.elevation_gain|elev:units }} gain{% endif %}
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        <div class="export-row">
+            <button type="submit" class="btn primary">Import selected</button>
+        </div>
+    </form>
+    {% else %}
+    <p>No routes returned by RideWithGPS.</p>
+    {% endif %}
+
+    <div class="cal-nav" style="margin-top:1rem">
+        {% if page > 1 %}
+            <a class="btn" href="?page={{ page|add:'-1' }}">Previous</a>
+        {% endif %}
+        {% if rwgps_routes %}
+            <a class="btn" href="?page={{ page|add:'1' }}">Next</a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

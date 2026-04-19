@@ -9,6 +9,7 @@ urlpatterns = [
     path('new/', views.route_create, name='create'),
     path('save/', views.route_save, name='save'),
     path('import/', views.route_import, name='import'),
+    path('rwgps/import/', views.rwgps_import, name='rwgps_import'),
     path('osrm/', views.osrm_proxy, name='osrm'),
     path('<int:pk>/', views.route_detail, name='detail'),
     path('<int:pk>/edit/', views.route_edit, name='edit'),

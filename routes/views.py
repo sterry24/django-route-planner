@@ -19,6 +19,13 @@ from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware
 from django.views.decorators.http import require_GET, require_POST
 
+from accounts.models import Profile
+from accounts.rwgps import (
+    RWGPSError,
+    fetch_route as rwgps_fetch_route,
+    list_routes as rwgps_list_routes,
+    track_points_to_coordinates,
+)
 from planning.services import OpenMeteoError, wind_along_route
 
 from . import io as route_io
@@ -238,6 +245,73 @@ def route_wind(request, pk):
     except OpenMeteoError as exc:
         return JsonResponse({'error': str(exc)}, status=502)
     return JsonResponse({'samples': samples})
+
+
+@login_required
+def rwgps_import(request):
+    """List the connected user's RWGPS routes and import the selected ones.
+
+    GET renders a paginated checkbox list. POST iterates the chosen route
+    IDs, fetches each via the RWGPS API, converts ``track_points`` to our
+    GeoJSON ``LineString`` form, and creates a local :class:`Route` per
+    successful fetch. Failures on individual routes are reported but don't
+    abort the rest of the batch.
+    """
+    profile, _ = Profile.objects.get_or_create(user=request.user)
+    if not profile.rwgps_connected:
+        messages.info(request, 'Connect your RideWithGPS account first.')
+        return redirect('accounts:settings')
+
+    if request.method == 'POST':
+        ids = request.POST.getlist('rwgps_route_ids')
+        if not ids:
+            messages.info(request, 'No routes selected.')
+            return redirect('routes:rwgps_import')
+        imported, failed = 0, 0
+        for rid in ids:
+            try:
+                payload = rwgps_fetch_route(profile.rwgps_access_token, rid)
+            except RWGPSError as exc:
+                messages.warning(request, f'Route {rid}: {exc}')
+                failed += 1
+                continue
+            data = payload.get('route') or payload
+            track_points = data.get('track_points') or []
+            coords = track_points_to_coordinates(track_points)
+            if len(coords) < 2:
+                messages.warning(request, f'Route {rid}: fewer than 2 track points')
+                failed += 1
+                continue
+            Route.objects.create(
+                owner=request.user,
+                name=data.get('name') or f'RWGPS route {rid}',
+                description=data.get('description') or '',
+                geometry={'type': 'LineString', 'coordinates': coords},
+                bounds=compute_bounds(coords),
+                distance_m=data.get('distance') or total_distance_m(coords),
+                elevation_gain_m=data.get('elevation_gain') or elevation_gain_m(coords),
+            )
+            imported += 1
+        messages.success(request,
+                         f'Imported {imported} route(s) from RideWithGPS' +
+                         (f', {failed} failed' if failed else '.'))
+        return redirect('routes:list')
+
+    # GET: list page
+    try:
+        page = int(request.GET.get('page', 1))
+    except ValueError:
+        page = 1
+    try:
+        data = rwgps_list_routes(profile.rwgps_access_token, page=page)
+    except RWGPSError as exc:
+        messages.error(request, f'Could not list RideWithGPS routes: {exc}')
+        return redirect('accounts:settings')
+    return render(request, 'routes/rwgps_import.html', {
+        'rwgps_routes': data.get('routes') or [],
+        'meta': data.get('meta') or {},
+        'page': page,
+    })
 
 
 @login_required

@@ -11,5 +11,23 @@
         </fieldset>
         <button type="submit" class="primary">Save</button>
     </form>
+
+    <h2>RideWithGPS</h2>
+    {% if profile.rwgps_connected %}
+        <p class="meta">Connected to RideWithGPS.</p>
+        <div class="export-row">
+            <a class="btn" href="{% url 'routes:rwgps_import' %}">Import routes</a>
+            <form method="post" action="{% url 'accounts:rwgps_disconnect' %}"
+                  style="display:inline">
+                {% csrf_token %}
+                <button type="submit" class="btn danger">Disconnect</button>
+            </form>
+        </div>
+    {% else %}
+        <p class="meta">Connect your RideWithGPS account to import routes.</p>
+        <a class="btn primary" href="{% url 'accounts:rwgps_connect' %}">
+            Connect RideWithGPS
+        </a>
+    {% endif %}
 </section>
 {% endblock %}
