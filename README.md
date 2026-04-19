@@ -1,4 +1,4 @@
-# django-planner-app
+# django-route-planner
 
 A Django web app for planning cycling routes and scheduling rides, with a
 wind-forecast overlay on the route for the scheduled time. Models the core

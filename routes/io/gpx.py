@@ -39,7 +39,7 @@ def parse(data: bytes) -> list[list[float]]:
 def serialize(route) -> bytes:
     """Serialize a :class:`routes.models.Route` as a single-track GPX file."""
     gpx = gpxpy.gpx.GPX()
-    gpx.creator = 'django-planner-app'
+    gpx.creator = 'django-route-planner'
     track = gpxpy.gpx.GPXTrack(name=route.name, description=route.description or None)
     gpx.tracks.append(track)
     seg = gpxpy.gpx.GPXTrackSegment()

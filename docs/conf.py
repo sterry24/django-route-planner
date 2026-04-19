@@ -1,4 +1,4 @@
-"""Sphinx configuration for django-planner-app.
+"""Sphinx configuration for django-route-planner.
 
 Configures Django before autodoc imports any app modules — Django models and
 views can't be imported without ``DJANGO_SETTINGS_MODULE`` and ``setup()``.
@@ -23,9 +23,9 @@ django.setup()
 
 # -- Project information -----------------------------------------------------
 
-project = 'django-planner-app'
-copyright = '2026, django-planner-app contributors'
-author = 'django-planner-app contributors'
+project = 'django-route-planner'
+copyright = '2026, django-route-planner contributors'
+author = 'django-route-planner contributors'
 release = '0.1'
 
 
